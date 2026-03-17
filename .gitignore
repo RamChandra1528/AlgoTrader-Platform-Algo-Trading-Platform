@@ -1,0 +1,73 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+
+# Local databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+pip-wheel-metadata/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.envrc
+
+# FastAPI / Uvicorn
+*.log
+
+# Node / frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.yarn/
+.pnpm-store/
+
+# Build artifacts
+dist/
+build/
+.next/
+out/
+coverage/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+
+# Cursor / AI tooling
+.cursor/
+
+# Local containers / volumes
+**/data/
+**/volumes/
+
+# Project-specific sensitive artifact (contains keys)
+api_keys.png
+

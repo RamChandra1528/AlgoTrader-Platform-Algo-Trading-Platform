@@ -1,0 +1,41 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api import auth, dashboard, strategies, backtests, trading, websocket, autotrading
+from app.config import settings
+from app.database import engine
+from app.models import Base
+
+# Create all tables
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version=settings.VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+# Add CORS middleware FIRST (before routers)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001", "localhost:3001"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
+)
+
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(strategies.router, prefix="/api/strategies", tags=["Strategies"])
+app.include_router(backtests.router, prefix="/api/backtests", tags=["Backtests"])
+app.include_router(trading.router, prefix="/api/trading", tags=["Trading"])
+app.include_router(autotrading.router, prefix="/api/autotrading", tags=["AutoTrading"])
+app.include_router(websocket.router, tags=["WebSocket"])
+
+
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "version": settings.VERSION}
