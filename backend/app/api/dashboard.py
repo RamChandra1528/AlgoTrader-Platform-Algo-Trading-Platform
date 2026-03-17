@@ -9,6 +9,7 @@ from app.models.trade import Trade
 from app.models.position import Position
 from app.models.backtest import Backtest
 from app.schemas.backtest import DashboardSummary
+from app.services.account import build_account_snapshot
 
 router = APIRouter()
 
@@ -18,20 +19,18 @@ def get_summary(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     trades = db.query(Trade).filter(Trade.user_id == current_user.id).all()
-    positions = db.query(Position).filter(Position.user_id == current_user.id).all()
 
-    total_pnl = sum(t.pnl for t in trades)
+    snapshot = build_account_snapshot(db, current_user)
+    total_pnl = snapshot["realized_pnl"] + snapshot["unrealized_pnl"]
     winning_trades = [t for t in trades if t.pnl > 0]
     win_rate = (len(winning_trades) / len(trades) * 100) if trades else 0.0
 
-    portfolio_value = 100000.0 + total_pnl + sum(
-        p.unrealized_pnl for p in positions
-    )
+    portfolio_value = snapshot["equity"]
 
     return DashboardSummary(
         total_pnl=round(total_pnl, 2),
         total_trades=len(trades),
-        open_positions=len(positions),
+        open_positions=len(snapshot["positions"]),
         portfolio_value=round(portfolio_value, 2),
         win_rate=round(win_rate, 2),
     )

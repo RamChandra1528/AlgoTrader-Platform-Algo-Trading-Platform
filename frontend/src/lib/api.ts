@@ -82,6 +82,15 @@ export const tradingApi = {
 export const autoTradingApi = {
   scan: () => api.post("/autotrading/scan"),
   execute: (data: { budget: number }) => api.post("/autotrading/execute", data),
+  liveStart: (data: {
+    profit_target_pct?: number;
+    stop_loss_pct?: number;
+    budget_per_trade?: number;
+    max_positions?: number;
+    loop_interval_sec?: number;
+  }) => api.post("/autotrading/live/start", data),
+  liveStop: () => api.post("/autotrading/live/stop"),
+  liveStatus: () => api.get("/autotrading/live/status"),
 };
 
 export default api;

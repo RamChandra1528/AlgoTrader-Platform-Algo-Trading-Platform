@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -15,6 +15,9 @@ class User(Base):
     full_name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    starting_balance = Column(Float, default=100000.0, nullable=False)
+    cash_balance = Column(Float, default=100000.0, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     strategies = relationship("Strategy", back_populates="user")
     trades = relationship("Trade", back_populates="user")

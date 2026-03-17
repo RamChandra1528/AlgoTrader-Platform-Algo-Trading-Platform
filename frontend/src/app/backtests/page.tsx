@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { isAuthenticated } from "@/lib/auth";
 import { backtestsApi, strategiesApi } from "@/lib/api";
+import { useTrading } from "@/components/Providers";
 
 interface Strategy {
   id: number;
@@ -36,6 +37,8 @@ export default function Backtests() {
   const [showForm, setShowForm] = useState(false);
   const [running, setRunning] = useState(false);
   const [selectedBacktest, setSelectedBacktest] = useState<Backtest | null>(null);
+  const { setAccount } = useTrading();
+  const [simulating, setSimulating] = useState(false);
   const [formData, setFormData] = useState({
     strategy_id: "",
     symbol: "AAPL",
@@ -97,6 +100,30 @@ export default function Backtests() {
 
   const getStrategyName = (id: number) => {
     return strategies.find(s => s.id === id)?.name || "Unknown";
+  };
+
+  const simulateBacktest = async (bt: Backtest) => {
+    if (!bt.equity_curve || bt.equity_curve.length < 2) return;
+    setSimulating(true);
+    try {
+      for (let i = 0; i < bt.equity_curve.length; i++) {
+        const p = bt.equity_curve[i];
+        const equity = p.value;
+        setAccount({
+          starting_balance: bt.initial_capital,
+          cash_balance: equity,
+          market_value: 0,
+          equity,
+          realized_pnl: equity - bt.initial_capital,
+          unrealized_pnl: 0,
+          positions: [],
+          timestamp: Date.now(),
+        });
+        await new Promise((r) => setTimeout(r, 80));
+      }
+    } finally {
+      setSimulating(false);
+    }
   };
 
   if (loading) {
@@ -239,9 +266,18 @@ export default function Backtests() {
                 <h2 className="text-lg font-semibold text-white">
                   {selectedBacktest.symbol} • {getStrategyName(selectedBacktest.strategy_id)}
                 </h2>
-                <button onClick={() => setSelectedBacktest(null)} className="text-gray-500 hover:text-gray-300 transition">
-                  ✕
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    disabled={simulating}
+                    onClick={() => simulateBacktest(selectedBacktest)}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-primary-500/20 text-primary-300 bg-primary-500/10 hover:bg-primary-500/20 disabled:opacity-50"
+                  >
+                    {simulating ? "Simulating..." : "▶ Simulate Live Updates"}
+                  </button>
+                  <button onClick={() => setSelectedBacktest(null)} className="text-gray-500 hover:text-gray-300 transition">
+                    ✕
+                  </button>
+                </div>
               </div>
 
               {/* Metrics Row */}

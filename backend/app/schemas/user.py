@@ -14,6 +14,8 @@ class UserResponse(BaseModel):
     full_name: str
     is_active: bool
     created_at: datetime
+    starting_balance: float
+    cash_balance: float
 
     class Config:
         from_attributes = True

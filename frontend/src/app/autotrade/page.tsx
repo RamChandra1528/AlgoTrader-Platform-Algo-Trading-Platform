@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { isAuthenticated } from "@/lib/auth";
 import { autoTradingApi, dashboardApi } from "@/lib/api";
+import { useTrading } from "@/components/Providers";
 
 interface Recommendation {
   symbol: string;
@@ -36,18 +37,38 @@ export default function AutoTrade() {
   const [executing, setExecuting] = useState(false);
   const [error, setError] = useState("");
   const [budget, setBudget] = useState(10000);
+  const [liveRunning, setLiveRunning] = useState(false);
+  const [liveConfig, setLiveConfig] = useState({
+    profit_target_pct: 0.03,
+    stop_loss_pct: 0.02,
+    budget_per_trade: 2000,
+    max_positions: 5,
+    loop_interval_sec: 10,
+  });
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [results, setResults] = useState<{
     executed_trades: ExecutionResult[];
     total_spent: number;
     budget_remaining: number;
   } | null>(null);
+  const { account } = useTrading();
 
   useEffect(() => {
     if (!isAuthenticated()) {
       router.push("/login");
     }
   }, [router]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await autoTradingApi.liveStatus();
+        setLiveRunning(Boolean(res.data?.running));
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
 
   const handleScan = async () => {
     setScanning(true);
@@ -83,6 +104,27 @@ export default function AutoTrade() {
     }
   };
 
+  const handleLiveStart = async () => {
+    setError("");
+    try {
+      await autoTradingApi.liveStart(liveConfig);
+      setLiveRunning(true);
+      router.push("/live");
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to start live auto-trader");
+    }
+  };
+
+  const handleLiveStop = async () => {
+    setError("");
+    try {
+      await autoTradingApi.liveStop();
+      setLiveRunning(false);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to stop live auto-trader");
+    }
+  };
+
   const getSignalColor = (signal: string) => {
     switch (signal) {
       case "BUY": return "text-green-400 bg-green-500/10 border-green-500/20";
@@ -103,6 +145,20 @@ export default function AutoTrade() {
                 <span className="text-primary-500">⚡</span> Auto Trade
               </h1>
               <p className="text-gray-500 text-sm">Automated market screening and execution</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Equity</p>
+                <p className="text-white font-bold">
+                  ${((account?.equity ?? 0) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+              <button
+                onClick={liveRunning ? handleLiveStop : handleLiveStart}
+                className={liveRunning ? "px-4 py-2 bg-red-600/20 text-red-300 rounded-lg transition text-sm font-medium border border-red-500/30 hover:bg-red-600/30" : "px-4 py-2 bg-green-600/20 text-green-300 rounded-lg transition text-sm font-medium border border-green-500/30 hover:bg-green-600/30"}
+              >
+                {liveRunning ? "Stop Live" : "Start Live"}
+              </button>
             </div>
             {recommendations.length > 0 && (
               <div className="flex items-center gap-4">
@@ -183,6 +239,56 @@ export default function AutoTrade() {
                       "Scan Market"
                     )}
                   </button>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Profit Target (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={liveConfig.profit_target_pct}
+                      onChange={(e) => setLiveConfig({ ...liveConfig, profit_target_pct: Number(e.target.value) })}
+                      className="input-premium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Stop Loss (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={liveConfig.stop_loss_pct}
+                      onChange={(e) => setLiveConfig({ ...liveConfig, stop_loss_pct: Number(e.target.value) })}
+                      className="input-premium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Budget / Trade</label>
+                    <input
+                      type="number"
+                      value={liveConfig.budget_per_trade}
+                      onChange={(e) => setLiveConfig({ ...liveConfig, budget_per_trade: Number(e.target.value) })}
+                      className="input-premium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Max Positions</label>
+                    <input
+                      type="number"
+                      value={liveConfig.max_positions}
+                      onChange={(e) => setLiveConfig({ ...liveConfig, max_positions: Number(e.target.value) })}
+                      className="input-premium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Loop (sec)</label>
+                    <input
+                      type="number"
+                      value={liveConfig.loop_interval_sec}
+                      onChange={(e) => setLiveConfig({ ...liveConfig, loop_interval_sec: Number(e.target.value) })}
+                      className="input-premium"
+                    />
+                  </div>
                 </div>
               </div>
               

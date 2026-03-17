@@ -5,9 +5,7 @@ from app.api import auth, dashboard, strategies, backtests, trading, websocket, 
 from app.config import settings
 from app.database import engine
 from app.models import Base
-
-# Create all tables
-Base.metadata.create_all(bind=engine)
+from app.db_migrations import migrate
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -16,15 +14,26 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+@app.on_event("startup")
+def on_startup():
+    # Ensure schema is up-to-date (SQLite dev DB) and create tables
+    migrate(engine)
+    Base.metadata.create_all(bind=engine)
+
 # Add CORS middleware FIRST (before routers)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001", "http://127.0.0.1:3001", "localhost:3001"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
-    max_age=3600,
+    max_age=36000,
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])

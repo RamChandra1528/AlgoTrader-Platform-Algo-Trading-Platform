@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { isAuthenticated } from "@/lib/auth";
 import { tradingApi, strategiesApi } from "@/lib/api";
+import { useTrading } from "@/components/Providers";
 
 interface Position {
   symbol: string;
@@ -38,6 +39,7 @@ export default function Positions() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"open" | "history" | "trade">("open");
+  const { account } = useTrading();
   const [tradeForm, setTradeForm] = useState({
     symbol: "AAPL",
     side: "buy",
@@ -53,6 +55,12 @@ export default function Positions() {
     }
     loadPositions();
   }, [router]);
+
+  useEffect(() => {
+    if (account?.positions) {
+      setPositions(account.positions as any);
+    }
+  }, [account]);
 
   const loadPositions = async () => {
     try {

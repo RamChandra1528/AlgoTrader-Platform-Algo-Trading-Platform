@@ -6,7 +6,10 @@ const RECONNECT_DELAY = 3000;
 
 const getWebSocketUrl = () => {
   const baseUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000";
-  return `${baseUrl}/ws`;
+  if (typeof window === "undefined") return `${baseUrl}/ws`;
+  const token = localStorage.getItem("token");
+  const qs = token ? `?token=${encodeURIComponent(token)}` : "";
+  return `${baseUrl}/ws${qs}`;
 };
 interface PriceUpdate {
   symbol: string;
@@ -34,12 +37,50 @@ interface TradeNotification {
   timestamp: number;
 }
 
+export interface BotLogEvent {
+  level: "info" | "warning" | "error";
+  event: string;
+  message: string;
+  symbol?: string;
+}
+
+export interface AccountSnapshot {
+  starting_balance: number;
+  cash_balance: number;
+  market_value: number;
+  equity: number;
+  realized_pnl: number;
+  unrealized_pnl: number;
+  positions: Array<{
+    id: number;
+    symbol: string;
+    quantity: number;
+    avg_price: number;
+    current_price: number;
+    unrealized_pnl: number;
+    market_value: number;
+    updated_at?: string | null;
+  }>;
+  last_trade?: {
+    id: number;
+    symbol: string;
+    side: string;
+    quantity: number;
+    price: number;
+    pnl: number;
+    executed_at: string;
+  };
+  timestamp?: number;
+}
+
 type DataCallback<T> = (data: T) => void;
 
 const callbacks = {
   priceUpdates: [] as DataCallback<PriceUpdate>[],
   positionUpdates: [] as DataCallback<PositionUpdate>[],
   tradeNotifications: [] as DataCallback<TradeNotification>[],
+  accountUpdates: [] as DataCallback<AccountSnapshot>[],
+  botLogs: [] as DataCallback<BotLogEvent>[],
   connectionStatus: [] as DataCallback<boolean>[],
 };
 
@@ -103,6 +144,12 @@ function handleMessage(message: any) {
     case "trade_notification":
       callbacks.tradeNotifications.forEach((cb) => cb(data as TradeNotification));
       break;
+    case "account_update":
+      callbacks.accountUpdates.forEach((cb) => cb(data as AccountSnapshot));
+      break;
+    case "bot_log":
+      callbacks.botLogs.forEach((cb) => cb(data as BotLogEvent));
+      break;
     default:
       // Silently ignore unknown types
       break;
@@ -153,6 +200,22 @@ export function subscribeToTradeNotifications(
     callbacks.tradeNotifications = callbacks.tradeNotifications.filter(
       (cb) => cb !== callback
     );
+  };
+}
+
+export function subscribeToAccountUpdates(
+  callback: DataCallback<AccountSnapshot>
+) {
+  callbacks.accountUpdates.push(callback);
+  return () => {
+    callbacks.accountUpdates = callbacks.accountUpdates.filter((cb) => cb !== callback);
+  };
+}
+
+export function subscribeToBotLogs(callback: DataCallback<BotLogEvent>) {
+  callbacks.botLogs.push(callback);
+  return () => {
+    callbacks.botLogs = callbacks.botLogs.filter((cb) => cb !== callback);
   };
 }
 

@@ -8,7 +8,7 @@ import MarketPrices from "@/components/MarketPrices";
 import RealTimeChart from "@/components/RealTimeChart";
 import { isAuthenticated } from "@/lib/auth";
 import { dashboardApi, authApi } from "@/lib/api";
-import { connectWebSocket, disconnectWebSocket } from "@/lib/websocket";
+import { useTrading } from "@/components/Providers";
 
 interface User {
   id: number;
@@ -85,6 +85,7 @@ export default function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { account } = useTrading();
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -93,10 +94,8 @@ export default function Dashboard() {
     }
 
     loadDashboard();
-    connectWebSocket();
 
     return () => {
-      disconnectWebSocket();
     };
   }, [router]);
 
@@ -127,6 +126,16 @@ export default function Dashboard() {
     );
   }
 
+  const liveSummary: Summary | null = account
+    ? {
+        total_pnl: (account.realized_pnl ?? 0) + (account.unrealized_pnl ?? 0),
+        total_trades: summary?.total_trades ?? 0,
+        open_positions: account.positions?.length ?? 0,
+        portfolio_value: account.equity ?? 0,
+        win_rate: summary?.win_rate ?? 0,
+      }
+    : summary;
+
   return (
     <div className="min-h-screen bg-gray-950 flex">
       <Sidebar />
@@ -155,7 +164,7 @@ export default function Dashboard() {
           {/* Stat Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {statCards.map((card, idx) => {
-              const value = summary?.[card.key as keyof Summary] ?? 0;
+              const value = liveSummary?.[card.key as keyof Summary] ?? 0;
               const colorClass = card.dynamic_color
                 ? (value as number) >= 0 ? "text-green-400" : "text-red-400"
                 : card.color;
