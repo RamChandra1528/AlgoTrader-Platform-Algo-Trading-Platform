@@ -61,7 +61,6 @@ export default function MarketPrices() {
         };
       });
 
-      // Reset flash after animation
       setTimeout(() => {
         setPrices((prev) => ({
           ...prev,
@@ -77,36 +76,46 @@ export default function MarketPrices() {
   }, []);
 
   return (
-    <div className="glass-card p-6">
-      <h2 className="text-lg font-semibold text-white mb-4">Market Prices</h2>
-      <div className="grid grid-cols-2 gap-3">
+    <div className="surface-card p-6">
+      <div className="mb-4">
+        <p className="app-kicker">Market watch</p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#0b2a5b]">Market prices</h2>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {DEFAULT_SYMBOLS.map((symbol) => {
           const item = prices[symbol];
           const isUp = item.changePercent >= 0;
           return (
             <div
               key={symbol}
-              className={`bg-gray-800/40 border border-gray-700/30 rounded-lg p-4 hover:border-gray-600/50 transition-all duration-300 ${
-                item.flash ? 'value-flash' : ''
+              className={`rounded-sm border border-slate-200 bg-slate-50 p-4 transition duration-300 hover:border-[#9fd9f8] ${
+                item.flash ? "value-flash" : ""
               }`}
             >
-              <div className="flex items-start justify-between mb-2">
+              <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="font-semibold text-white text-sm">{symbol}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                    {symbol}
+                  </p>
+                  <p className="mt-3 text-2xl font-semibold tracking-tight text-[#0b2a5b]">
+                    {item.price > 0 ? `$${item.price.toFixed(2)}` : "--"}
+                  </p>
                 </div>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                  isUp
-                    ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                    : "bg-red-500/10 text-red-400 border border-red-500/20"
-                }`}>
-                  {isUp ? "+" : ""}{item.changePercent.toFixed(2)}%
+                <span
+                  className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${
+                    isUp
+                      ? "border-green-200 bg-green-50 text-green-700"
+                      : "border-red-200 bg-red-50 text-red-700"
+                  }`}
+                >
+                  {isUp ? "+" : ""}
+                  {item.changePercent.toFixed(2)}%
                 </span>
               </div>
-              <p className="text-xl font-bold text-white mb-1">
-                {item.price > 0 ? `$${item.price.toFixed(2)}` : '—'}
-              </p>
-              <p className={`text-xs flex items-center gap-1 ${isUp ? "text-green-400" : "text-red-400"}`}>
-                {isUp ? "↑" : "↓"} ${Math.abs(item.change).toFixed(2)}
+
+              <p className={`mt-3 text-sm font-semibold ${isUp ? "status-positive" : "status-negative"}`}>
+                {isUp ? "+" : "-"}${Math.abs(item.change).toFixed(2)}
               </p>
             </div>
           );

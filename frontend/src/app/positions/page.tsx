@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
+import AppShell from "@/components/AppShell";
+import PageLoader from "@/components/PageLoader";
 import { isAuthenticated } from "@/lib/auth";
 import { tradingApi, strategiesApi } from "@/lib/api";
 import { useTrading } from "@/components/Providers";
@@ -73,7 +74,7 @@ export default function Positions() {
       setPositions(portfolioRes.data?.positions || []);
       setTrades(Array.isArray(historyRes.data) ? historyRes.data : []);
       setStrategies(strategiesRes.data || []);
-    } catch (err: any) {
+    } catch {
       setError("Failed to load positions");
     } finally {
       setLoading(false);
@@ -101,265 +102,239 @@ export default function Positions() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950">
-        <div className="text-center">
-          <div className="w-10 h-10 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading positions...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader label="Loading positions" />;
   }
 
   const totalUnrealized = positions.reduce((sum, p) => sum + p.unrealized_pnl, 0);
   const totalMarketValue = positions.reduce((sum, p) => sum + p.market_value, 0);
 
   return (
-    <div className="min-h-screen bg-gray-950 flex">
-      <Sidebar />
-
-      <div className="flex-1 ml-64">
-        <header className="bg-gray-900/50 backdrop-blur-sm border-b border-gray-800/50 sticky top-0 z-40">
-          <div className="px-6 py-4 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-white">Positions & Trading</h1>
-              <div className="flex gap-6 mt-1">
-                <span className="text-gray-500 text-sm">
-                  Market Value: <span className="text-white font-semibold">${totalMarketValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </span>
-                <span className="text-gray-500 text-sm">
-                  Unrealized P&L:{" "}
-                  <span className={`font-semibold ${totalUnrealized >= 0 ? "text-green-400" : "text-red-400"}`}>
-                    {totalUnrealized >= 0 ? "+" : ""}${totalUnrealized.toFixed(2)}
-                  </span>
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={() => setActiveTab(activeTab === "trade" ? "open" : "trade")}
-              className={activeTab === "trade" ? "px-4 py-2 bg-gray-800 text-gray-300 rounded-lg transition text-sm font-medium border border-gray-700/50 hover:bg-gray-700" : "btn-glow text-sm"}
-            >
-              {activeTab === "trade" ? "Cancel" : "⚡ New Trade"}
-            </button>
+    <AppShell
+      eyebrow="Execution"
+      title="Positions and Trading"
+      subtitle="Review open positions, inspect paper-trade history, and execute new trades without changing the underlying trading workflow."
+      actions={
+        <>
+          <div className="enterprise-chip">
+            Market Value ${totalMarketValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-        </header>
+          <div className={`enterprise-chip ${totalUnrealized >= 0 ? "status-positive" : "status-negative"}`}>
+            Unrealized {totalUnrealized >= 0 ? "+" : ""}${totalUnrealized.toFixed(2)}
+          </div>
+          <button
+            onClick={() => setActiveTab(activeTab === "trade" ? "open" : "trade")}
+            className={activeTab === "trade" ? "enterprise-button-secondary" : "enterprise-button-primary"}
+          >
+            {activeTab === "trade" ? "Cancel" : "New Trade"}
+          </button>
+        </>
+      }
+    >
+      {error ? (
+        <div className="mb-6 rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
 
-        <main className="px-6 py-6">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg mb-6 text-sm">
-              {error}
+      {activeTab === "trade" ? (
+        <div className="surface-card mb-6 p-6 animate-fade-in-up">
+          <p className="app-kicker">Trade ticket</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#0b2a5b]">
+            Execute paper trade
+          </h2>
+          <form onSubmit={handleTrade} className="mt-6 space-y-5">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">Symbol</label>
+                <input
+                  type="text"
+                  required
+                  value={tradeForm.symbol}
+                  onChange={(e) => setTradeForm({ ...tradeForm, symbol: e.target.value })}
+                  className="input-premium"
+                  placeholder="AAPL"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">Side</label>
+                <select
+                  value={tradeForm.side}
+                  onChange={(e) => setTradeForm({ ...tradeForm, side: e.target.value })}
+                  className="input-premium"
+                >
+                  <option value="buy">Buy</option>
+                  <option value="sell">Sell</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">Quantity</label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={tradeForm.quantity}
+                  onChange={(e) => setTradeForm({ ...tradeForm, quantity: parseInt(e.target.value) || 1 })}
+                  className="input-premium"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">Strategy (optional)</label>
+                <select
+                  value={tradeForm.strategy_id}
+                  onChange={(e) => setTradeForm({ ...tradeForm, strategy_id: e.target.value })}
+                  className="input-premium"
+                >
+                  <option value="">None</option>
+                  {strategies.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          )}
 
-          {/* Trade Form */}
-          {activeTab === "trade" && (
-            <div className="glass-card p-6 mb-6 animate-fade-in-up">
-              <h2 className="text-lg font-semibold text-white mb-4">Execute Paper Trade</h2>
-              <form onSubmit={handleTrade} className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Symbol</label>
-                    <input
-                      type="text"
-                      required
-                      value={tradeForm.symbol}
-                      onChange={(e) => setTradeForm({ ...tradeForm, symbol: e.target.value })}
-                      className="input-premium"
-                      placeholder="AAPL"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Side</label>
-                    <select
-                      value={tradeForm.side}
-                      onChange={(e) => setTradeForm({ ...tradeForm, side: e.target.value })}
-                      className="input-premium"
-                    >
-                      <option value="buy">Buy</option>
-                      <option value="sell">Sell</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Quantity</label>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      value={tradeForm.quantity}
-                      onChange={(e) => setTradeForm({ ...tradeForm, quantity: parseInt(e.target.value) || 1 })}
-                      className="input-premium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Strategy (optional)</label>
-                    <select
-                      value={tradeForm.strategy_id}
-                      onChange={(e) => setTradeForm({ ...tradeForm, strategy_id: e.target.value })}
-                      className="input-premium"
-                    >
-                      <option value="">None</option>
-                      {strategies.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={executing}
-                  className={`w-full px-4 py-2.5 rounded-lg transition-all font-semibold text-white disabled:opacity-50 ${
-                    tradeForm.side === "buy"
-                      ? "bg-green-600 hover:bg-green-500 shadow-lg shadow-green-500/20"
-                      : "bg-red-600 hover:bg-red-500 shadow-lg shadow-red-500/20"
-                  }`}
-                >
-                  {executing ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Executing...
-                    </span>
-                  ) : (
-                    `${tradeForm.side === "buy" ? "Buy" : "Sell"} ${tradeForm.quantity} ${tradeForm.symbol.toUpperCase()}`
-                  )}
-                </button>
-              </form>
+            <button
+              type="submit"
+              disabled={executing}
+              className={tradeForm.side === "buy" ? "enterprise-button-success w-full" : "enterprise-button-danger w-full"}
+            >
+              {executing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Executing...
+                </span>
+              ) : (
+                `${tradeForm.side === "buy" ? "Buy" : "Sell"} ${tradeForm.quantity} ${tradeForm.symbol.toUpperCase()}`
+              )}
+            </button>
+          </form>
+        </div>
+      ) : (
+        <>
+          <div className="mb-6">
+            <div className="enterprise-tabs">
+              <button
+                onClick={() => setActiveTab("open")}
+                className={activeTab === "open" ? "enterprise-tab-active" : "enterprise-tab"}
+              >
+                Open Positions ({positions.length})
+              </button>
+              <button
+                onClick={() => setActiveTab("history")}
+                className={activeTab === "history" ? "enterprise-tab-active" : "enterprise-tab"}
+              >
+                Trade History ({trades.length})
+              </button>
             </div>
-          )}
+          </div>
 
-          {/* Tabs */}
-          {activeTab !== "trade" && (
-            <>
-              <div className="flex gap-1 mb-6 bg-gray-900/50 rounded-lg p-1 w-fit">
-                <button
-                  onClick={() => setActiveTab("open")}
-                  className={`px-4 py-2 rounded-md font-medium text-sm transition-all ${
-                    activeTab === "open"
-                      ? "bg-primary-600/20 text-primary-400"
-                      : "text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Open Positions ({positions.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab("history")}
-                  className={`px-4 py-2 rounded-md font-medium text-sm transition-all ${
-                    activeTab === "history"
-                      ? "bg-primary-600/20 text-primary-400"
-                      : "text-gray-400 hover:text-gray-300"
-                  }`}
-                >
-                  Trade History ({trades.length})
+          {activeTab === "open" ? (
+            positions.length === 0 ? (
+              <div className="enterprise-empty">
+                <p className="text-xl font-semibold text-[#0b2a5b]">No open positions</p>
+                <p className="mt-2 text-sm text-slate-500">Execute your first paper trade to get started.</p>
+                <button onClick={() => setActiveTab("trade")} className="enterprise-button-primary mt-6">
+                  Execute Trade
                 </button>
               </div>
-
-              {/* Open Positions */}
-              {activeTab === "open" && (
-                <>
-                  {positions.length === 0 ? (
-                    <div className="glass-card p-12 text-center">
-                      <div className="text-4xl mb-4 opacity-50">💼</div>
-                      <h3 className="text-lg font-semibold text-white mb-2">No open positions</h3>
-                      <p className="text-gray-400 text-sm mb-6">Execute your first trade to get started</p>
-                      <button onClick={() => setActiveTab("trade")} className="btn-glow text-sm">
-                        Execute Trade
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid gap-3">
-                      {positions.map((position, idx) => (
-                        <div
-                          key={idx}
-                          className={`glass-card p-5 hover:border-gray-700/50 transition-all duration-200 animate-fade-in-up stagger-${Math.min(idx + 1, 4)}`}
+            ) : (
+              <div className="grid gap-4">
+                {positions.map((position, idx) => (
+                  <div
+                    key={idx}
+                    className={`surface-card p-5 animate-fade-in-up stagger-${Math.min(idx + 1, 4)}`}
+                  >
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+                      <div>
+                        <p className="enterprise-kpi">Symbol</p>
+                        <p className="mt-2 text-xl font-semibold text-[#0b2a5b]">{position.symbol}</p>
+                      </div>
+                      <div>
+                        <p className="enterprise-kpi">Quantity</p>
+                        <p className="mt-2 text-lg font-semibold text-[#0b2a5b]">{position.quantity}</p>
+                      </div>
+                      <div>
+                        <p className="enterprise-kpi">Avg Price</p>
+                        <p className="mt-2 text-lg font-semibold text-[#0b2a5b]">${position.avg_price.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="enterprise-kpi">Current</p>
+                        <p className="mt-2 text-lg font-semibold text-[#0b2a5b]">${position.current_price.toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="enterprise-kpi">Market Value</p>
+                        <p className="mt-2 text-lg font-semibold text-[#0b2a5b]">
+                          $
+                          {position.market_value.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="enterprise-kpi">Unrealized P&L</p>
+                        <p
+                          className={`mt-2 text-xl font-semibold ${
+                            position.unrealized_pnl >= 0 ? "status-positive" : "status-negative"
+                          }`}
                         >
-                          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 items-center">
-                            <div>
-                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Symbol</p>
-                              <p className="text-white font-bold text-lg">{position.symbol}</p>
-                            </div>
-                            <div>
-                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Quantity</p>
-                              <p className="text-white font-semibold">{position.quantity}</p>
-                            </div>
-                            <div>
-                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Avg Price</p>
-                              <p className="text-white font-semibold">${position.avg_price.toFixed(2)}</p>
-                            </div>
-                            <div>
-                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Current</p>
-                              <p className="text-white font-semibold">${position.current_price.toFixed(2)}</p>
-                            </div>
-                            <div>
-                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Market Value</p>
-                              <p className="text-white font-semibold">${position.market_value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                            </div>
-                            <div>
-                              <p className="text-gray-500 text-[10px] uppercase tracking-wider">Unrealized P&L</p>
-                              <p className={`font-bold text-lg ${position.unrealized_pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                {position.unrealized_pnl >= 0 ? "+" : ""}${position.unrealized_pnl.toFixed(2)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                          {position.unrealized_pnl >= 0 ? "+" : ""}${position.unrealized_pnl.toFixed(2)}
+                        </p>
+                      </div>
                     </div>
-                  )}
-                </>
-              )}
-
-              {/* Trade History */}
-              {activeTab === "history" && (
-                <>
-                  {trades.length === 0 ? (
-                    <div className="glass-card p-12 text-center">
-                      <div className="text-4xl mb-4 opacity-50">📋</div>
-                      <p className="text-gray-400">No trade history</p>
-                    </div>
-                  ) : (
-                    <div className="glass-card overflow-hidden">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-gray-800/50">
-                            <th className="text-left px-4 py-3 text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Symbol</th>
-                            <th className="text-left px-4 py-3 text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Side</th>
-                            <th className="text-left px-4 py-3 text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Qty</th>
-                            <th className="text-left px-4 py-3 text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Price</th>
-                            <th className="text-left px-4 py-3 text-[10px] text-gray-500 font-semibold uppercase tracking-wider">P&L</th>
-                            <th className="text-left px-4 py-3 text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Date</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {trades.map((trade) => (
-                            <tr
-                              key={trade.id}
-                              className="border-b border-gray-800/30 hover:bg-gray-800/20 transition"
-                            >
-                              <td className="px-4 py-3 text-white font-bold text-sm">{trade.symbol}</td>
-                              <td className={`px-4 py-3 text-sm font-semibold ${trade.side === "buy" ? "text-green-400" : "text-red-400"}`}>
-                                {trade.side.toUpperCase()}
-                              </td>
-                              <td className="px-4 py-3 text-white text-sm">{trade.quantity}</td>
-                              <td className="px-4 py-3 text-white text-sm">${trade.price.toFixed(2)}</td>
-                              <td className={`px-4 py-3 text-sm font-semibold ${trade.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                                {trade.pnl >= 0 ? "+" : ""}${trade.pnl.toFixed(2)}
-                              </td>
-                              <td className="px-4 py-3 text-gray-400 text-sm">
-                                {new Date(trade.executed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : trades.length === 0 ? (
+            <div className="enterprise-empty">
+              <p className="text-xl font-semibold text-[#0b2a5b]">No trade history</p>
+              <p className="mt-2 text-sm text-slate-500">Executed paper trades will appear here.</p>
+            </div>
+          ) : (
+            <div className="surface-card overflow-hidden">
+              <table className="enterprise-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>P&amp;L</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trades.map((trade) => (
+                    <tr key={trade.id}>
+                      <td className="font-semibold text-[#0b2a5b]">{trade.symbol}</td>
+                      <td className={trade.side === "buy" ? "status-positive font-semibold" : "status-negative font-semibold"}>
+                        {trade.side.toUpperCase()}
+                      </td>
+                      <td>{trade.quantity}</td>
+                      <td>${trade.price.toFixed(2)}</td>
+                      <td className={trade.pnl >= 0 ? "status-positive font-semibold" : "status-negative font-semibold"}>
+                        {trade.pnl >= 0 ? "+" : ""}${trade.pnl.toFixed(2)}
+                      </td>
+                      <td className="text-slate-500">
+                        {new Date(trade.executed_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </main>
-      </div>
-    </div>
+        </>
+      )}
+    </AppShell>
   );
 }

@@ -1,6 +1,7 @@
 import backtrader as bt
 import yfinance as yf
 import pandas as pd
+import math
 
 from app.engine.strategies import STRATEGY_MAP
 
@@ -17,6 +18,18 @@ class EquityObserver(bt.observer.Observer):
 
 class BacktestEngine:
     """Runs backtests using Backtrader with yfinance data."""
+
+    @staticmethod
+    def _safe_float(value, digits: int = 2, default: float = 0.0) -> float:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return default
+
+        if not math.isfinite(numeric):
+            return default
+
+        return round(numeric, digits)
 
     def run(
         self,
@@ -79,15 +92,19 @@ class BacktestEngine:
 
         # Extract metrics
         sharpe_analysis = strat.analyzers.sharpe.get_analysis()
-        sharpe_ratio = sharpe_analysis.get("sharperatio") or 0.0
+        sharpe_ratio = self._safe_float(sharpe_analysis.get("sharperatio"), digits=4, default=0.0)
 
         drawdown_analysis = strat.analyzers.drawdown.get_analysis()
-        max_drawdown = drawdown_analysis.get("max", {}).get("drawdown", 0.0)
+        max_drawdown = self._safe_float(
+            drawdown_analysis.get("max", {}).get("drawdown", 0.0), digits=2, default=0.0
+        )
 
         returns_analysis = strat.analyzers.returns.get_analysis()
-        total_return = returns_analysis.get("rtot", 0.0) * 100  # as percentage
+        total_return = self._safe_float(
+            returns_analysis.get("rtot", 0.0) * 100, digits=2, default=0.0
+        )
 
-        final_value = cerebro.broker.getvalue()
+        final_value = self._safe_float(cerebro.broker.getvalue(), digits=2, default=initial_capital)
 
         # Build equity curve from strategy data
         equity_curve = self._build_equity_curve(df, initial_capital, final_value)
@@ -96,10 +113,10 @@ class BacktestEngine:
         trades_log = getattr(strat, "trade_log", [])
 
         return {
-            "final_value": round(final_value, 2),
-            "total_return": round(total_return, 2),
-            "sharpe_ratio": round(sharpe_ratio, 4) if sharpe_ratio else 0.0,
-            "max_drawdown": round(max_drawdown, 2),
+            "final_value": final_value,
+            "total_return": total_return,
+            "sharpe_ratio": sharpe_ratio,
+            "max_drawdown": max_drawdown,
             "equity_curve": equity_curve,
             "trades_log": trades_log,
         }
@@ -117,11 +134,11 @@ class BacktestEngine:
         curve = []
         for i, date in enumerate(dates):
             value = initial_capital + step * i
-            curve.append({"date": date, "value": round(value, 2)})
+            curve.append({"date": date, "value": self._safe_float(value, digits=2, default=initial_capital)})
 
         # Ensure final value is exact
         if curve:
-            curve[-1]["value"] = round(final_value, 2)
+            curve[-1]["value"] = self._safe_float(final_value, digits=2, default=initial_capital)
 
         # Sample to max 100 points for performance
         if len(curve) > 100:

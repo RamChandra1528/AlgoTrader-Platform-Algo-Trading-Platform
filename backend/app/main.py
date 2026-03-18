@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth, dashboard, strategies, backtests, trading, websocket, autotrading
 from app.config import settings
+from app.core.json_utils import SafeJSONResponse
 from app.database import engine
 from app.models import Base
 from app.db_migrations import migrate
@@ -12,6 +13,7 @@ app = FastAPI(
     version=settings.VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
+    default_response_class=SafeJSONResponse,
 )
 
 @app.on_event("startup")

@@ -8,6 +8,7 @@ import {
   disconnectWebSocket,
   subscribeToAccountUpdates,
   subscribeToBotLogs,
+  subscribeToTradeNotifications,
 } from "@/lib/websocket";
 
 type TradingContextValue = {
@@ -15,6 +16,17 @@ type TradingContextValue = {
   setAccount: (snap: AccountSnapshot) => void;
   botLogs: Array<BotLogEvent & { ts: number }>;
   clearBotLogs: () => void;
+  tradeTape: Array<{
+    id: number;
+    symbol: string;
+    side: string;
+    quantity: number;
+    price: number;
+    status: string;
+    timestamp: number;
+  }>;
+  equitySeries: Array<{ ts: number; equity: number }>;
+  clearTradeTape: () => void;
 };
 
 const TradingContext = createContext<TradingContextValue | null>(null);
@@ -28,18 +40,42 @@ export function useTrading() {
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [account, setAccount] = useState<AccountSnapshot | null>(null);
   const [botLogs, setBotLogs] = useState<Array<BotLogEvent & { ts: number }>>([]);
+  const [tradeTape, setTradeTape] = useState<
+    Array<{
+      id: number;
+      symbol: string;
+      side: string;
+      quantity: number;
+      price: number;
+      status: string;
+      timestamp: number;
+    }>
+  >([]);
+  const [equitySeries, setEquitySeries] = useState<Array<{ ts: number; equity: number }>>([]);
 
   useEffect(() => {
     connectWebSocket();
     const unsub = subscribeToAccountUpdates((snap) => {
       setAccount(snap);
+      const ts = typeof snap.timestamp === "number" ? snap.timestamp : Date.now();
+      if (typeof snap.equity === "number") {
+        setEquitySeries((prev) => {
+          const next = [...prev, { ts, equity: snap.equity }];
+          return next.slice(-240); // keep last ~240 points
+        });
+      }
     });
     const unsubLogs = subscribeToBotLogs((e) => {
       setBotLogs((prev) => [{ ...e, ts: Date.now() }, ...prev].slice(0, 200));
     });
+    const unsubTrades = subscribeToTradeNotifications((t: any) => {
+      const ts = typeof t.timestamp === "number" ? t.timestamp : Date.now();
+      setTradeTape((prev) => [{ ...t, timestamp: ts }, ...prev].slice(0, 50));
+    });
     return () => {
       unsub();
       unsubLogs();
+      unsubTrades();
       disconnectWebSocket();
     };
   }, []);
@@ -50,8 +86,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       setAccount,
       botLogs,
       clearBotLogs: () => setBotLogs([]),
+      tradeTape,
+      clearTradeTape: () => setTradeTape([]),
+      equitySeries,
     }),
-    [account, botLogs]
+    [account, botLogs, tradeTape, equitySeries]
   );
 
   return <TradingContext.Provider value={value}>{children}</TradingContext.Provider>;

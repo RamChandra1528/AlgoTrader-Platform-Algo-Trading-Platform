@@ -1,106 +1,163 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { subscribeToPriceUpdates } from '@/lib/websocket';
 
-interface PricePoint {
-  time: string;
-  AAPL: number | null;
-  GOOGL: number | null;
-  MSFT: number | null;
-  TSLA: number | null;
+type SymbolKey = 'AAPL' | 'GOOGL' | 'MSFT' | 'TSLA';
+
+interface PriceUpdate {
+  symbol: string;
+  price: number;
+  timestamp: number;
+  change: number;
+  changePercent: number;
 }
 
+interface SeriesPoint {
+  time: string;
+  price: number;
+}
+
+interface QuoteState {
+  price: number;
+  change: number;
+  changePercent: number;
+  timestamp: number;
+}
+
+const TRACKED_SYMBOLS: SymbolKey[] = ['AAPL', 'GOOGL', 'MSFT', 'TSLA'];
+
+const EMPTY_SERIES: Record<SymbolKey, SeriesPoint[]> = {
+  AAPL: [],
+  GOOGL: [],
+  MSFT: [],
+  TSLA: [],
+};
+
+const EMPTY_QUOTES: Record<SymbolKey, QuoteState | null> = {
+  AAPL: null,
+  GOOGL: null,
+  MSFT: null,
+  TSLA: null,
+};
+
 export default function RealTimeChart() {
-  const [data, setData] = useState<PricePoint[]>([]);
-  const [selectedSymbol, setSelectedSymbol] = useState<'AAPL' | 'GOOGL' | 'MSFT' | 'TSLA'>('AAPL');
+  const [selectedSymbol, setSelectedSymbol] = useState<SymbolKey>('AAPL');
+  const [seriesBySymbol, setSeriesBySymbol] = useState<Record<SymbolKey, SeriesPoint[]>>(EMPTY_SERIES);
+  const [quotes, setQuotes] = useState<Record<SymbolKey, QuoteState | null>>(EMPTY_QUOTES);
 
   useEffect(() => {
-    const unsubscribe = subscribeToPriceUpdates((price) => {
-      setData((prevData) => {
-        const timestamp = new Date().toLocaleTimeString();
-        const lastPoint = prevData.length > 0 ? prevData[prevData.length - 1] : null;
+    const unsubscribe = subscribeToPriceUpdates((price: PriceUpdate) => {
+      if (!TRACKED_SYMBOLS.includes(price.symbol as SymbolKey)) {
+        return;
+      }
 
-        const newPoint: PricePoint = {
-          time: timestamp,
-          AAPL: price.symbol === 'AAPL' ? price.price : lastPoint?.AAPL || null,
-          GOOGL: price.symbol === 'GOOGL' ? price.price : lastPoint?.GOOGL || null,
-          MSFT: price.symbol === 'MSFT' ? price.price : lastPoint?.MSFT || null,
-          TSLA: price.symbol === 'TSLA' ? price.price : lastPoint?.TSLA || null,
+      const symbol = price.symbol as SymbolKey;
+      const timeLabel = new Date(price.timestamp || Date.now()).toLocaleTimeString();
+
+      setQuotes((prev) => ({
+        ...prev,
+        [symbol]: {
+          price: price.price,
+          change: price.change,
+          changePercent: price.changePercent,
+          timestamp: price.timestamp,
+        },
+      }));
+
+      setSeriesBySymbol((prev) => {
+        const currentSeries = prev[symbol];
+        const nextPoint: SeriesPoint = {
+          time: timeLabel,
+          price: price.price,
         };
 
-        const updated = [...prevData, newPoint];
-        return updated.slice(-60);
+        const lastPoint = currentSeries[currentSeries.length - 1];
+        const nextSeries =
+          lastPoint && lastPoint.time === nextPoint.time
+            ? [...currentSeries.slice(0, -1), nextPoint]
+            : [...currentSeries, nextPoint];
+
+        return {
+          ...prev,
+          [symbol]: nextSeries.slice(-60),
+        };
       });
     });
 
     return () => unsubscribe();
   }, []);
 
-  // Get min and max for Y-axis scaling
-  const selectedData = data.map(d => d[selectedSymbol]).filter(v => v !== null) as number[];
-  const minPrice = selectedData.length > 0 ? Math.min(...selectedData) : 0;
-  const maxPrice = selectedData.length > 0 ? Math.max(...selectedData) : 100;
-  const range = maxPrice - minPrice || 1;
-  const padding = range * 0.1;
+  const selectedSeries = seriesBySymbol[selectedSymbol];
+  const selectedQuote = quotes[selectedSymbol];
 
-  // SVG dimensions
-  const svgWidth = 800;
-  const svgHeight = 300;
-  const padding_x = 60;
-  const padding_y = 30;
-  const chartWidth = svgWidth - padding_x * 2;
-  const chartHeight = svgHeight - padding_y * 2;
+  const { minPrice, maxPrice, pathData, areaPath, points } = useMemo(() => {
+    const selectedData = selectedSeries.map((point) => point.price);
+    const min = selectedData.length > 0 ? Math.min(...selectedData) : 0;
+    const max = selectedData.length > 0 ? Math.max(...selectedData) : 100;
+    const range = max - min || 1;
+    const pricePadding = range * 0.1;
 
-  // Create path for the line
-  const points = data.map((d, index) => {
-    const x = padding_x + (index / Math.max(data.length - 1, 1)) * chartWidth;
-    const price = d[selectedSymbol];
-    const y = price === null
-      ? svgHeight - padding_y
-      : padding_y + ((maxPrice + padding - price) / (range + padding * 2)) * chartHeight;
-    return { x, y, price };
-  });
+    const svgWidth = 800;
+    const svgHeight = 300;
+    const paddingX = 60;
+    const paddingY = 30;
+    const chartWidth = svgWidth - paddingX * 2;
+    const chartHeight = svgHeight - paddingY * 2;
 
-  const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const seriesPoints = selectedSeries.map((point, index) => {
+      const x = paddingX + (index / Math.max(selectedSeries.length - 1, 1)) * chartWidth;
+      const y =
+        paddingY + ((max + pricePadding - point.price) / (range + pricePadding * 2)) * chartHeight;
+      return { x, y, price: point.price };
+    });
 
-  // Area fill path
-  const areaPath = pathData
-    ? `${pathData} L ${points[points.length - 1]?.x} ${svgHeight - padding_y} L ${points[0]?.x} ${svgHeight - padding_y} Z`
-    : '';
+    const linePath = seriesPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const fillPath = linePath
+      ? `${linePath} L ${seriesPoints[seriesPoints.length - 1]?.x} ${svgHeight - paddingY} L ${seriesPoints[0]?.x} ${svgHeight - paddingY} Z`
+      : '';
 
-  // Current price and change
-  const currentPrice = selectedData.length > 0 ? selectedData[selectedData.length - 1] : 0;
-  const previousPrice = selectedData.length > 1 ? selectedData[selectedData.length - 2] : currentPrice;
-  const change = currentPrice - previousPrice;
-  const changePercent = previousPrice !== 0 ? (change / previousPrice) * 100 : 0;
+    return {
+      minPrice: min,
+      maxPrice: max,
+      pathData: linePath,
+      areaPath: fillPath,
+      points: seriesPoints,
+    };
+  }, [selectedSeries]);
+
+  const currentPrice = selectedQuote?.price ?? 0;
+  const change = selectedQuote?.change ?? 0;
+  const changePercent = selectedQuote?.changePercent ?? 0;
   const isPositive = change >= 0;
-  const lineColor = isPositive ? '#22c55e' : '#ef4444';
-  const lineColorFaded = isPositive ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)';
+  const lineColor = isPositive ? '#15803d' : '#b42318';
 
   return (
-    <div className="w-full bg-gray-900 border border-gray-800 rounded-lg p-6">
-      <div className="flex justify-between items-center mb-4">
+    <div className="surface-card p-6">
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">{selectedSymbol}</h2>
-          <p className="text-gray-400">
-            <span className="text-white text-xl font-semibold">${currentPrice.toFixed(2)}</span>
-            <span className={`ml-2 text-sm font-semibold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-              {isPositive ? '+' : ''}{change.toFixed(2)} ({isPositive ? '+' : ''}{changePercent.toFixed(2)}%)
+          <p className="app-kicker">Realtime chart</p>
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-[#0b2a5b]">{selectedSymbol}</h2>
+          <p className="mt-3 text-base text-slate-500">
+            <span className="text-2xl font-semibold text-[#0b2a5b]">${currentPrice.toFixed(2)}</span>
+            <span className={`ml-3 text-sm font-semibold ${isPositive ? 'status-positive' : 'status-negative'}`}>
+              {isPositive ? '+' : ''}
+              {change.toFixed(2)} ({isPositive ? '+' : ''}
+              {changePercent.toFixed(2)}%)
             </span>
           </p>
         </div>
 
-        <div className="flex gap-2">
-          {(['AAPL', 'GOOGL', 'MSFT', 'TSLA'] as const).map((symbol) => (
+        <div className="flex flex-wrap gap-2">
+          {TRACKED_SYMBOLS.map((symbol) => (
             <button
               key={symbol}
               onClick={() => setSelectedSymbol(symbol)}
-              className={`px-4 py-2 rounded-lg font-semibold text-sm transition ${
+              className={
                 selectedSymbol === symbol
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
-              }`}
+                  ? 'enterprise-button-primary px-4 py-2'
+                  : 'enterprise-button-secondary px-4 py-2'
+              }
             >
               {symbol}
             </button>
@@ -108,89 +165,70 @@ export default function RealTimeChart() {
         </div>
       </div>
 
-      {data.length > 1 ? (
-        <svg
-          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          className="w-full rounded-lg"
-          style={{ background: 'rgba(17,24,39,0.5)' }}
-        >
-          <defs>
-            <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={lineColor} stopOpacity="0.2" />
-              <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
-            </linearGradient>
-          </defs>
+      {selectedSeries.length > 1 ? (
+        <div className="rounded-sm border border-slate-200 bg-[#f7fbff] p-4">
+          <svg viewBox="0 0 800 300" className="w-full rounded-sm">
+            <defs>
+              <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={lineColor} stopOpacity="0.2" />
+                <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
+              </linearGradient>
+            </defs>
 
-          {/* Grid lines */}
-          {[0, 0.25, 0.5, 0.75, 1].map((i) => (
-            <line
-              key={`grid-${i}`}
-              x1={padding_x}
-              y1={padding_y + i * chartHeight}
-              x2={svgWidth - padding_x}
-              y2={padding_y + i * chartHeight}
-              stroke="rgba(75,85,99,0.3)"
-              strokeDasharray="5,5"
-            />
-          ))}
-
-          {/* Y-axis labels */}
-          {[0, 0.25, 0.5, 0.75, 1].map((i) => {
-            const price = maxPrice + padding - i * (range + padding * 2);
-            return (
-              <text
-                key={`label-${i}`}
-                x={padding_x - 10}
-                y={padding_y + i * chartHeight + 5}
-                textAnchor="end"
-                fill="#9ca3af"
-                fontSize="12"
-              >
-                ${price.toFixed(0)}
-              </text>
-            );
-          })}
-
-          {/* Area fill */}
-          {areaPath && <path d={areaPath} fill="url(#areaGradient)" />}
-
-          {/* Price line */}
-          <path d={pathData} stroke={lineColor} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-
-          {/* Latest point glow */}
-          {points.length > 0 && points[points.length - 1].price !== null && (
-            <>
-              <circle
-                cx={points[points.length - 1].x}
-                cy={points[points.length - 1].y}
-                r="6"
-                fill={lineColor}
-                opacity="0.3"
+            {[0, 0.25, 0.5, 0.75, 1].map((i) => (
+              <line
+                key={`grid-${i}`}
+                x1={60}
+                y1={30 + i * 240}
+                x2={740}
+                y2={30 + i * 240}
+                stroke="rgba(182, 201, 221, 0.8)"
+                strokeDasharray="4,6"
               />
-              <circle
-                cx={points[points.length - 1].x}
-                cy={points[points.length - 1].y}
-                r="3"
-                fill={lineColor}
-              />
-            </>
-          )}
+            ))}
 
-          {/* Axes */}
-          <line x1={padding_x} y1={padding_y} x2={padding_x} y2={svgHeight - padding_y} stroke="rgba(75,85,99,0.5)" strokeWidth="1" />
-          <line x1={padding_x} y1={svgHeight - padding_y} x2={svgWidth - padding_x} y2={svgHeight - padding_y} stroke="rgba(75,85,99,0.5)" strokeWidth="1" />
-        </svg>
+            {[0, 0.25, 0.5, 0.75, 1].map((i) => {
+              const price = maxPrice + (maxPrice - minPrice || 1) * 0.1 - i * ((maxPrice - minPrice || 1) * 1.2);
+              return (
+                <text
+                  key={`label-${i}`}
+                  x={50}
+                  y={30 + i * 240 + 5}
+                  textAnchor="end"
+                  fill="#5f738a"
+                  fontSize="12"
+                >
+                  ${price.toFixed(0)}
+                </text>
+              );
+            })}
+
+            {areaPath ? <path d={areaPath} fill="url(#areaGradient)" /> : null}
+            <path d={pathData} stroke={lineColor} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+
+            {points.length > 0 ? (
+              <>
+                <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="6" fill={lineColor} opacity="0.18" />
+                <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="3" fill={lineColor} />
+              </>
+            ) : null}
+
+            <line x1={60} y1={30} x2={60} y2={270} stroke="rgba(182, 201, 221, 0.9)" strokeWidth="1" />
+            <line x1={60} y1={270} x2={740} y2={270} stroke="rgba(182, 201, 221, 0.9)" strokeWidth="1" />
+          </svg>
+        </div>
       ) : (
-        <div className="flex items-center justify-center h-80 bg-gray-800/30 rounded-lg border border-gray-700">
+        <div className="flex h-80 items-center justify-center rounded-sm border border-slate-200 bg-[#f7fbff]">
           <div className="text-center">
-            <div className="animate-pulse text-4xl mb-3">📈</div>
-            <p className="text-gray-400">Waiting for price data...</p>
-            <p className="text-gray-500 text-sm mt-1">Data will appear when WebSocket connects</p>
+            <p className="text-base font-semibold text-[#0b2a5b]">Waiting for price data</p>
+            <p className="mt-2 text-sm text-slate-500">Data will appear when the WebSocket connection is active.</p>
           </div>
         </div>
       )}
 
-      <p className="text-xs text-gray-500 mt-3 text-center">Real-time price updates · Last 60 data points</p>
+      <p className="mt-4 text-center text-xs uppercase tracking-[0.18em] text-slate-400">
+        Real-time price updates. Last 60 points for {selectedSymbol}.
+      </p>
     </div>
   );
 }

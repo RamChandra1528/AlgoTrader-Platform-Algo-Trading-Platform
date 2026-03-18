@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import List
 
 import pandas as pd
@@ -11,6 +12,19 @@ DEFAULT_WATCHLIST = [
     "AAPL", "GOOGL", "MSFT", "AMZN", "META", "TSLA", "NVDA", 
     "AMD", "NFLX", "JPM", "V", "JNJ", "WMT", "PG", "DIS"
 ]
+
+
+def _is_finite_number(value) -> bool:
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def _safe_round(value, digits: int = 2):
+    if not _is_finite_number(value):
+        return None
+    return round(float(value), digits)
 
 def analyze_stock(symbol: str) -> dict:
     """Analyze a single stock and return technical signals and confidence score."""
@@ -41,6 +55,16 @@ def analyze_stock(symbol: str) -> dict:
         prev_sma10 = df['SMA_10'].iloc[-2]
         prev_sma30 = df['SMA_30'].iloc[-2]
         current_rsi = df['RSI'].iloc[-1]
+
+        if not all(
+            _is_finite_number(value)
+            for value in (current_price, current_sma10, current_sma30, prev_sma10, prev_sma30)
+        ):
+            return {"symbol": symbol, "status": "insufficient_data"}
+
+        # Keep RSI neutral if the source series is flat or otherwise non-finite.
+        if not _is_finite_number(current_rsi):
+            current_rsi = 50.0
         
         # Determine signals
         signal = "HOLD"
@@ -90,14 +114,14 @@ def analyze_stock(symbol: str) -> dict:
         
         return {
             "symbol": symbol,
-            "current_price": round(current_price, 2),
+            "current_price": _safe_round(current_price, 2),
             "signal": signal,
-            "confidence": round(confidence, 1),
+            "confidence": _safe_round(confidence, 1),
             "reasons": reasons,
             "indicators": {
-                "sma_10": round(current_sma10, 2),
-                "sma_30": round(current_sma30, 2),
-                "rsi_14": round(current_rsi, 2)
+                "sma_10": _safe_round(current_sma10, 2),
+                "sma_30": _safe_round(current_sma30, 2),
+                "rsi_14": _safe_round(current_rsi, 2),
             },
             "status": "success"
         }

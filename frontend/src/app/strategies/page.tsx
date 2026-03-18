@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
+import AppShell from "@/components/AppShell";
+import PageLoader from "@/components/PageLoader";
 import { isAuthenticated } from "@/lib/auth";
 import { strategiesApi } from "@/lib/api";
 
@@ -21,8 +22,8 @@ const STRATEGY_LABELS: Record<string, string> = {
 };
 
 const STRATEGY_DESCRIPTIONS: Record<string, string> = {
-  ma_crossover: "Buys when fast MA crosses above slow MA, sells when it crosses below",
-  rsi: "Buys when RSI drops below oversold, sells when RSI rises above overbought",
+  ma_crossover: "Buys when fast MA crosses above slow MA, sells when it crosses below.",
+  rsi: "Buys when RSI drops below oversold, sells when RSI rises above overbought.",
 };
 
 export default function Strategies() {
@@ -85,200 +86,218 @@ export default function Strategies() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950">
-        <div className="text-center">
-          <div className="w-10 h-10 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading strategies...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader label="Loading strategies" />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex">
-      <Sidebar />
+    <AppShell
+      eyebrow="Strategy lab"
+      title="Strategies"
+      subtitle={`${strategies.length} strategies configured. Define reusable logic for backtesting, execution, and auto-trading.`}
+      actions={
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className={showForm ? "enterprise-button-secondary" : "enterprise-button-primary"}
+        >
+          {showForm ? "Cancel" : "New Strategy"}
+        </button>
+      }
+    >
+      {error ? (
+        <div className="mb-6 rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
 
-      <div className="flex-1 ml-64">
-        <header className="bg-gray-900/50 backdrop-blur-sm border-b border-gray-800/50 sticky top-0 z-40">
-          <div className="px-6 py-4 flex justify-between items-center">
+      {showForm ? (
+        <div className="surface-card mb-6 p-6 animate-fade-in-up">
+          <p className="app-kicker">Create strategy</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[#0b2a5b]">
+            Define a new strategy blueprint.
+          </h2>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5">
             <div>
-              <h1 className="text-2xl font-bold text-white">Strategies</h1>
-              <p className="text-gray-500 text-sm">{strategies.length} strategies configured</p>
+              <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">Strategy name</label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="input-premium"
+                placeholder="e.g. AAPL MA Crossover"
+              />
             </div>
-            <button
-              onClick={() => setShowForm(!showForm)}
-              className={showForm ? "px-4 py-2 bg-gray-800 text-gray-300 rounded-lg transition text-sm font-medium border border-gray-700/50 hover:bg-gray-700" : "btn-glow text-sm"}
-            >
-              {showForm ? "Cancel" : "+ New Strategy"}
-            </button>
-          </div>
-        </header>
 
-        <main className="px-6 py-6">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg mb-6 text-sm">
-              {error}
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">Strategy type</label>
+              <select
+                value={formData.strategy_type}
+                onChange={(e) => setFormData({ ...formData, strategy_type: e.target.value, parameters: {} })}
+                className="input-premium"
+              >
+                <option value="ma_crossover">Moving Average Crossover</option>
+                <option value="rsi">RSI Strategy</option>
+              </select>
+              <p className="mt-2 text-sm text-slate-500">{STRATEGY_DESCRIPTIONS[formData.strategy_type]}</p>
             </div>
-          )}
 
-          {/* Form */}
-          {showForm && (
-            <div className="glass-card p-6 mb-6 animate-fade-in-up">
-              <h2 className="text-lg font-semibold text-white mb-4">Create New Strategy</h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
+            {formData.strategy_type === "ma_crossover" ? (
+              <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1.5">Strategy Name</label>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">Fast period</label>
                   <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    type="number"
+                    value={formData.parameters.fast_period || 10}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        parameters: { ...formData.parameters, fast_period: parseInt(e.target.value) || 10 },
+                      })
+                    }
                     className="input-premium"
-                    placeholder="e.g., AAPL MA Crossover"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1.5">Strategy Type</label>
-                  <select
-                    value={formData.strategy_type}
-                    onChange={(e) => setFormData({ ...formData, strategy_type: e.target.value, parameters: {} })}
+                  <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">Slow period</label>
+                  <input
+                    type="number"
+                    value={formData.parameters.slow_period || 30}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        parameters: { ...formData.parameters, slow_period: parseInt(e.target.value) || 30 },
+                      })
+                    }
                     className="input-premium"
-                  >
-                    <option value="ma_crossover">Moving Average Crossover</option>
-                    <option value="rsi">RSI Strategy</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">{STRATEGY_DESCRIPTIONS[formData.strategy_type]}</p>
+                  />
                 </div>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">RSI period</label>
+                  <input
+                    type="number"
+                    value={formData.parameters.rsi_period || 14}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        parameters: { ...formData.parameters, rsi_period: parseInt(e.target.value) || 14 },
+                      })
+                    }
+                    className="input-premium"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">Overbought</label>
+                  <input
+                    type="number"
+                    value={formData.parameters.overbought || 70}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        parameters: { ...formData.parameters, overbought: parseInt(e.target.value) || 70 },
+                      })
+                    }
+                    className="input-premium"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-[#0b2a5b]">Oversold</label>
+                  <input
+                    type="number"
+                    value={formData.parameters.oversold || 30}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        parameters: { ...formData.parameters, oversold: parseInt(e.target.value) || 30 },
+                      })
+                    }
+                    className="input-premium"
+                  />
+                </div>
+              </div>
+            )}
 
-                {/* MA Parameters */}
-                {formData.strategy_type === "ma_crossover" && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1.5">Fast Period</label>
-                      <input
-                        type="number"
-                        value={formData.parameters.fast_period || 10}
-                        onChange={(e) => setFormData({ ...formData, parameters: { ...formData.parameters, fast_period: parseInt(e.target.value) || 10 } })}
-                        className="input-premium"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1.5">Slow Period</label>
-                      <input
-                        type="number"
-                        value={formData.parameters.slow_period || 30}
-                        onChange={(e) => setFormData({ ...formData, parameters: { ...formData.parameters, slow_period: parseInt(e.target.value) || 30 } })}
-                        className="input-premium"
-                      />
-                    </div>
+            <button type="submit" className="enterprise-button-primary w-full">
+              Create Strategy
+            </button>
+          </form>
+        </div>
+      ) : null}
+
+      {strategies.length === 0 ? (
+        <div className="enterprise-empty">
+          <p className="text-xl font-semibold text-[#0b2a5b]">No strategies yet</p>
+          <p className="mt-2 text-sm text-slate-500">
+            Create your first trading strategy to start testing and execution workflows.
+          </p>
+          <button onClick={() => setShowForm(true)} className="enterprise-button-primary mt-6">
+            Create Strategy
+          </button>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {strategies.map((strategy, idx) => (
+            <div
+              key={strategy.id}
+              className={`surface-card p-6 transition duration-300 hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(10,61,145,0.12)] animate-fade-in-up stagger-${Math.min(
+                idx + 1,
+                4
+              )}`}
+            >
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="text-xl font-semibold text-[#0b2a5b]">{strategy.name}</h3>
+                    <span
+                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${
+                        strategy.is_active
+                          ? "border-green-200 bg-green-50 text-green-700"
+                          : "border-slate-200 bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {strategy.is_active ? "Active" : "Inactive"}
+                    </span>
                   </div>
-                )}
-
-                {/* RSI Parameters */}
-                {formData.strategy_type === "rsi" && (
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1.5">RSI Period</label>
-                      <input
-                        type="number"
-                        value={formData.parameters.rsi_period || 14}
-                        onChange={(e) => setFormData({ ...formData, parameters: { ...formData.parameters, rsi_period: parseInt(e.target.value) || 14 } })}
-                        className="input-premium"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1.5">Overbought</label>
-                      <input
-                        type="number"
-                        value={formData.parameters.overbought || 70}
-                        onChange={(e) => setFormData({ ...formData, parameters: { ...formData.parameters, overbought: parseInt(e.target.value) || 70 } })}
-                        className="input-premium"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1.5">Oversold</label>
-                      <input
-                        type="number"
-                        value={formData.parameters.oversold || 30}
-                        onChange={(e) => setFormData({ ...formData, parameters: { ...formData.parameters, oversold: parseInt(e.target.value) || 30 } })}
-                        className="input-premium"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <button type="submit" className="w-full btn-glow">
-                  Create Strategy
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* Strategies List */}
-          {strategies.length === 0 ? (
-            <div className="glass-card p-12 text-center">
-              <div className="text-4xl mb-4">⚙️</div>
-              <h3 className="text-lg font-semibold text-white mb-2">No strategies yet</h3>
-              <p className="text-gray-400 text-sm mb-6">Create your first trading strategy to get started</p>
-              <button onClick={() => setShowForm(true)} className="btn-glow text-sm">
-                Create Strategy
-              </button>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {strategies.map((strategy, idx) => (
-                <div
-                  key={strategy.id}
-                  className={`glass-card p-5 hover:border-gray-700/50 transition-all duration-200 animate-fade-in-up stagger-${Math.min(idx + 1, 4)}`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <h3 className="text-lg font-semibold text-white">{strategy.name}</h3>
-                        <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                          strategy.is_active
-                            ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                            : "bg-gray-700/50 text-gray-400 border border-gray-600/20"
-                        }`}>
-                          {strategy.is_active ? "Active" : "Inactive"}
+                  <p className="mt-2 text-sm font-semibold text-[#007cc3]">
+                    {STRATEGY_LABELS[strategy.strategy_type] || strategy.strategy_type}
+                  </p>
+                  {strategy.parameters && Object.keys(strategy.parameters).length > 0 ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {Object.entries(strategy.parameters).map(([key, val]) => (
+                        <span
+                          key={key}
+                          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600"
+                        >
+                          {key.replace(/_/g, " ")}: <span className="font-semibold text-[#0b2a5b]">{val}</span>
                         </span>
-                      </div>
-                      <p className="text-gray-400 text-sm">{STRATEGY_LABELS[strategy.strategy_type] || strategy.strategy_type}</p>
-                      {strategy.parameters && Object.keys(strategy.parameters).length > 0 && (
-                        <div className="flex gap-3 mt-2">
-                          {Object.entries(strategy.parameters).map(([key, val]) => (
-                            <span key={key} className="text-xs text-gray-500 bg-gray-800/50 px-2 py-1 rounded">
-                              {key.replace(/_/g, ' ')}: <span className="text-gray-300">{val}</span>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <p className="text-gray-600 text-xs mt-2">
-                        Created {new Date(strategy.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </p>
+                      ))}
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => router.push("/backtests")}
-                        className="px-3 py-2 bg-primary-600/10 text-primary-400 border border-primary-500/20 hover:bg-primary-600/20 rounded-lg transition text-sm font-medium"
-                      >
-                        Backtest
-                      </button>
-                      <button
-                        onClick={() => handleDelete(strategy.id)}
-                        className="px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 rounded-lg transition text-sm font-medium"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
+                  ) : null}
+                  <p className="mt-4 text-xs uppercase tracking-[0.18em] text-slate-400">
+                    Created{" "}
+                    {new Date(strategy.created_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </p>
                 </div>
-              ))}
+
+                <div className="flex flex-wrap gap-3">
+                  <button onClick={() => router.push("/backtests")} className="enterprise-button-secondary">
+                    Backtest
+                  </button>
+                  <button onClick={() => handleDelete(strategy.id)} className="enterprise-button-danger">
+                    Delete
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
-        </main>
-      </div>
-    </div>
+          ))}
+        </div>
+      )}
+    </AppShell>
   );
 }
