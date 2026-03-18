@@ -12,6 +12,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models.user import User
 from app.services.account import build_account_snapshot
+from app.services.auto_trader import DEFAULT_WATCHLIST
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -72,16 +73,33 @@ async def emit_bot_log(user_id: int, payload: dict) -> None:
     await manager.broadcast_to_user(user_id, {"type": "bot_log", "data": payload})
 
 # Sample symbols to track
-TRACKED_SYMBOLS = ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"]
+TRACKED_SYMBOLS = DEFAULT_WATCHLIST.copy()
 
 # Store baseline prices for the mock generator
 BASE_PRICES = {
-    "AAPL": 175.50,
-    "GOOGL": 140.20,
-    "MSFT": 380.10,
-    "TSLA": 210.80,
-    "AMZN": 155.40
+    symbol: round(90 + (idx * 17.35), 2)
+    for idx, symbol in enumerate(TRACKED_SYMBOLS)
 }
+
+BASE_PRICES.update(
+    {
+        "AAPL": 175.50,
+        "GOOGL": 140.20,
+        "MSFT": 380.10,
+        "AMZN": 155.40,
+        "META": 485.30,
+        "TSLA": 210.80,
+        "NVDA": 870.25,
+        "AMD": 178.45,
+        "NFLX": 610.15,
+        "JPM": 198.20,
+        "V": 282.10,
+        "JNJ": 162.35,
+        "WMT": 60.75,
+        "PG": 168.40,
+        "DIS": 112.90,
+    }
+)
 
 async def fetch_price_updates():
     """Generate realistic mock price updates to avoid API rate limits."""
