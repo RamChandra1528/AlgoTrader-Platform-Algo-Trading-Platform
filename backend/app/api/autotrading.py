@@ -7,10 +7,11 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
 from app.database import get_db
 from app.models.user import User
+from app.services.admin import log_audit_event
 from app.services.auto_trader import screen_market, analyze_stock
-from app.api.trading import execute_trade
 from app.schemas.trade import TradeExecute
 from app.services.live_autotrader import AutoTradeConfig, is_running, start, stop
+from app.services.trading_engine import execute_trade_for_user
 
 router = APIRouter()
 
@@ -123,7 +124,7 @@ def auto_execute(
                 strategy_id=None
             )
             
-            trade = execute_trade(trade_req, db, current_user)
+            trade = execute_trade_for_user(db, current_user, trade_req, source="autotrader")
             total_spent += cost
             budget -= cost
             
@@ -178,10 +179,40 @@ async def live_start(
         loop_interval_sec=payload.loop_interval_sec,
     )
     start(current_user.id, cfg)
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        log_audit_event(
+            db,
+            action="live_autotrader_started",
+            entity_type="autotrader",
+            actor_user_id=current_user.id,
+            target_user_id=current_user.id,
+            entity_id=str(current_user.id),
+            details=payload.model_dump() if hasattr(payload, "model_dump") else payload.dict(),
+        )
+    finally:
+        db.close()
     return {"status": "started"}
 
 
 @router.post("/live/stop")
 async def live_stop(current_user: User = Depends(get_current_user)):
     stop(current_user.id)
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        log_audit_event(
+            db,
+            action="live_autotrader_stopped",
+            entity_type="autotrader",
+            actor_user_id=current_user.id,
+            target_user_id=current_user.id,
+            entity_id=str(current_user.id),
+            details={},
+        )
+    finally:
+        db.close()
     return {"status": "stopped"}

@@ -31,6 +31,7 @@ docker-compose up --build
 # Frontend: http://localhost:3000
 # Backend API: http://localhost:8000
 # API Docs: http://localhost:8000/docs
+# Default Admin Login: admin@algotrader.local / Admin@123
 ```
 
 ## Local Development
@@ -47,6 +48,8 @@ pip install -r requirements.txt
 # Set environment variables
 set DATABASE_URL=postgresql://algotrader:algotrader_secret@localhost:5432/algotrading
 set SECRET_KEY=dev-secret-key
+set ADMIN_EMAIL=admin@algotrader.local
+set ADMIN_PASSWORD=Admin@123
 
 uvicorn app.main:app --reload
 ```

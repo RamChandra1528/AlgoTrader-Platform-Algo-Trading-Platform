@@ -1,6 +1,4 @@
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -9,9 +7,9 @@ from app.models.position import Position
 from app.models.trade import Trade
 from app.models.user import User
 from app.schemas.trade import TradeExecute, TradeResponse
+from app.services.admin import log_audit_event
 from app.services.market_data import get_current_price
-from app.services.account import build_account_snapshot
-from app.api.websocket import emit_account_update, emit_trade_notification
+from app.services.trading_engine import execute_trade_for_user
 
 router = APIRouter()
 
@@ -22,116 +20,22 @@ def execute_trade(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    price = get_current_price(payload.symbol)
-    if price is None:
-        raise HTTPException(status_code=400, detail="Could not fetch price")
-
-    symbol = payload.symbol.upper()
-    side = payload.side.lower()
-    if side not in {"buy", "sell"}:
-        raise HTTPException(status_code=400, detail="Invalid side (must be buy/sell)")
-
-    # Calculate PnL for sells
-    pnl = 0.0
-    position = (
-        db.query(Position)
-        .filter(Position.user_id == current_user.id, Position.symbol == symbol)
-        .first()
-    )
-
-    if side == "sell":
-        if not position or position.quantity < payload.quantity:
-            raise HTTPException(status_code=400, detail="Insufficient position")
-        pnl = (price - position.avg_price) * payload.quantity
-    else:
-        # Enforce cash constraint for paper trading balance
-        cost = price * payload.quantity
-        if float(current_user.cash_balance) < cost:
-            raise HTTPException(status_code=400, detail="Insufficient cash balance")
-
-    # Record trade
-    trade = Trade(
-        user_id=current_user.id,
-        strategy_id=payload.strategy_id,
-        symbol=symbol,
-        side=side,
-        quantity=payload.quantity,
-        price=price,
-        pnl=round(pnl, 2),
-        is_paper=True,
-    )
-    db.add(trade)
-
-    # Update position
-    if side == "buy":
-        current_user.cash_balance = float(current_user.cash_balance) - (price * payload.quantity)
-        if position:
-            total_qty = position.quantity + payload.quantity
-            position.avg_price = (
-                (position.avg_price * position.quantity) + (price * payload.quantity)
-            ) / total_qty
-            position.quantity = total_qty
-            position.current_price = price
-            position.unrealized_pnl = round(
-                (price - position.avg_price) * position.quantity, 2
-            )
-        else:
-            position = Position(
-                user_id=current_user.id,
-                symbol=symbol,
-                quantity=payload.quantity,
-                avg_price=price,
-                current_price=price,
-                unrealized_pnl=0.0,
-            )
-            db.add(position)
-    else:  # sell
-        current_user.cash_balance = float(current_user.cash_balance) + (price * payload.quantity)
-        position.quantity -= payload.quantity
-        if position.quantity <= 0:
-            db.delete(position)
-        else:
-            position.current_price = price
-            position.unrealized_pnl = round(
-                (price - position.avg_price) * position.quantity, 2
-            )
-
-    db.commit()
-    db.refresh(trade)
-
-    # Emit a real-time account update (fire-and-forget)
-    try:
-        snapshot = build_account_snapshot(db, current_user)
-        last_trade = {
-            "id": trade.id,
+    trade = execute_trade_for_user(db, current_user, payload, source="manual")
+    log_audit_event(
+        db,
+        action="trade_executed",
+        entity_type="trade",
+        actor_user_id=current_user.id,
+        target_user_id=current_user.id,
+        entity_id=str(trade.id),
+        details={
             "symbol": trade.symbol,
             "side": trade.side,
             "quantity": trade.quantity,
             "price": round(trade.price, 2),
-            "pnl": round(trade.pnl, 2),
-            "executed_at": trade.executed_at.isoformat(),
-        }
-        snapshot["last_trade"] = last_trade
-        snapshot["timestamp"] = int(datetime.utcnow().timestamp() * 1000)
-        import anyio
-        anyio.from_thread.run(emit_account_update, current_user.id, snapshot)
-        anyio.from_thread.run(
-            emit_trade_notification,
-            current_user.id,
-            {
-                "id": trade.id,
-                "symbol": trade.symbol,
-                "side": trade.side,
-                "quantity": trade.quantity,
-                "price": round(trade.price, 2),
-                "status": "filled",
-                "timestamp": snapshot["timestamp"],
-            },
-        )
-    except Exception:
-        # Never fail the trade because WS emission failed
-        pass
-
+            "source": trade.source,
+        },
+    )
     return trade
 
 

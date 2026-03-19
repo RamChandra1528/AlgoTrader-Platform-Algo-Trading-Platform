@@ -18,6 +18,8 @@ class Trade(Base):
     price = Column(Float, nullable=False)
     pnl = Column(Float, default=0.0)
     is_paper = Column(Boolean, default=True)
+    source = Column(String, default="manual", nullable=False)
+    notes = Column(String, nullable=True)
     executed_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="trades")

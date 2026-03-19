@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import BrandLogo from "@/components/BrandLogo";
 
 interface AuthShellProps {
   title: string;
@@ -55,17 +56,7 @@ export default function AuthShell({
 
         <div className="auth-form">
           <div className="mb-8">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-sm bg-[#007cc3] text-base font-bold text-white">
-                AT
-              </div>
-              <div>
-                <p className="text-xl font-semibold tracking-tight text-[#0b2a5b]">AlgoTrader</p>
-                <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
-                  Trading Platform
-                </p>
-              </div>
-            </div>
+            <BrandLogo iconSize="md" tagline="Research | Backtest | Execute" />
 
             <h2 className="mt-8 text-3xl font-semibold tracking-tight text-[#0b1f3a]">{title}</h2>
             <p className="mt-2 text-sm leading-7 text-slate-600">{subtitle}</p>

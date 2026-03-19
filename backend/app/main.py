@@ -2,11 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth, dashboard, strategies, backtests, trading, websocket, autotrading
+from app.api import admin
 from app.config import settings
 from app.core.json_utils import SafeJSONResponse
-from app.database import engine
+from app.database import SessionLocal, engine
 from app.models import Base
 from app.db_migrations import migrate
+from app.services.admin import bootstrap_admin_system, broadcast_system_state
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -21,6 +23,12 @@ def on_startup():
     # Ensure schema is up-to-date (SQLite dev DB) and create tables
     migrate(engine)
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        bootstrap_admin_system(db)
+        broadcast_system_state(db)
+    finally:
+        db.close()
 
 # Add CORS middleware FIRST (before routers)
 app.add_middleware(
@@ -44,6 +52,7 @@ app.include_router(strategies.router, prefix="/api/strategies", tags=["Strategie
 app.include_router(backtests.router, prefix="/api/backtests", tags=["Backtests"])
 app.include_router(trading.router, prefix="/api/trading", tags=["Trading"])
 app.include_router(autotrading.router, prefix="/api/autotrading", tags=["AutoTrading"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(websocket.router, tags=["WebSocket"])
 
 

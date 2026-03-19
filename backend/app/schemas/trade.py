@@ -20,6 +20,8 @@ class TradeResponse(BaseModel):
     price: float
     pnl: float
     is_paper: bool
+    source: str
+    notes: Optional[str] = None
     executed_at: datetime
 
     class Config:

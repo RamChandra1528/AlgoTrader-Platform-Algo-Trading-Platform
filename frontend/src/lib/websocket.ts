@@ -44,6 +44,48 @@ export interface BotLogEvent {
   symbol?: string;
 }
 
+export interface AdminMonitorEvent {
+  category: string;
+  action: string;
+  message: string;
+  timestamp: number;
+  user_id?: number | null;
+  symbol?: string | null;
+  value?: number | null;
+  meta: Record<string, unknown>;
+}
+
+export interface AuditLogEvent {
+  id: number;
+  actor_user_id?: number | null;
+  target_user_id?: number | null;
+  action: string;
+  entity_type: string;
+  entity_id?: string | null;
+  severity: string;
+  details: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SystemStatusEvent {
+  system_running: boolean;
+  trading_enabled: boolean;
+  market_data_enabled: boolean;
+  global_stop_loss_limit: number;
+  default_max_trade_amount: number;
+  default_daily_loss_limit: number;
+  default_max_trades_per_day: number;
+  services: Array<{
+    service_name: string;
+    status: string;
+    message?: string | null;
+    last_heartbeat?: string | null;
+    last_restart_at?: string | null;
+    updated_at?: string | null;
+  }>;
+  timestamp: number;
+}
+
 export interface AccountSnapshot {
   starting_balance: number;
   cash_balance: number;
@@ -82,6 +124,9 @@ const callbacks = {
   accountUpdates: [] as DataCallback<AccountSnapshot>[],
   botLogs: [] as DataCallback<BotLogEvent>[],
   connectionStatus: [] as DataCallback<boolean>[],
+  adminMonitor: [] as DataCallback<AdminMonitorEvent>[],
+  auditLogs: [] as DataCallback<AuditLogEvent>[],
+  systemStatus: [] as DataCallback<SystemStatusEvent>[],
 };
 
 export function connectWebSocket() {
@@ -149,6 +194,15 @@ function handleMessage(message: any) {
       break;
     case "bot_log":
       callbacks.botLogs.forEach((cb) => cb(data as BotLogEvent));
+      break;
+    case "admin_monitor":
+      callbacks.adminMonitor.forEach((cb) => cb(data as AdminMonitorEvent));
+      break;
+    case "audit_log":
+      callbacks.auditLogs.forEach((cb) => cb(data as AuditLogEvent));
+      break;
+    case "system_status":
+      callbacks.systemStatus.forEach((cb) => cb(data as SystemStatusEvent));
       break;
     default:
       // Silently ignore unknown types
@@ -227,6 +281,27 @@ export function subscribeToConnectionStatus(
     callbacks.connectionStatus = callbacks.connectionStatus.filter(
       (cb) => cb !== callback
     );
+  };
+}
+
+export function subscribeToAdminMonitor(callback: DataCallback<AdminMonitorEvent>) {
+  callbacks.adminMonitor.push(callback);
+  return () => {
+    callbacks.adminMonitor = callbacks.adminMonitor.filter((cb) => cb !== callback);
+  };
+}
+
+export function subscribeToAuditLogs(callback: DataCallback<AuditLogEvent>) {
+  callbacks.auditLogs.push(callback);
+  return () => {
+    callbacks.auditLogs = callbacks.auditLogs.filter((cb) => cb !== callback);
+  };
+}
+
+export function subscribeToSystemStatus(callback: DataCallback<SystemStatusEvent>) {
+  callbacks.systemStatus.push(callback);
+  return () => {
+    callbacks.systemStatus = callbacks.systemStatus.filter((cb) => cb !== callback);
   };
 }
 

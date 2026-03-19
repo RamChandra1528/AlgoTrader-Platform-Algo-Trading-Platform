@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { PlatformControlState } from "@/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -91,6 +92,44 @@ export const autoTradingApi = {
   }) => api.post("/autotrading/live/start", data),
   liveStop: () => api.post("/autotrading/live/stop"),
   liveStatus: () => api.get("/autotrading/live/status"),
+};
+
+export const adminApi = {
+  summary: () => api.get("/admin/summary"),
+  listUsers: () => api.get("/admin/users"),
+  updateUser: (id: number, data: Record<string, unknown>) => api.patch(`/admin/users/${id}`, data),
+  deleteUser: (id: number) => api.delete(`/admin/users/${id}`),
+  resetUserBalance: (id: number, new_balance: number) =>
+    api.post(`/admin/users/${id}/reset-balance`, { new_balance }),
+  userPortfolio: (id: number) => api.get(`/admin/users/${id}/portfolio`),
+  userTrades: (id: number, limit = 100) => api.get(`/admin/users/${id}/trades`, { params: { limit } }),
+  setGlobalTrading: (enabled: boolean) => api.post("/admin/trading/global", { enabled }),
+  pauseUserTrading: (id: number, enabled: boolean) =>
+    api.post(`/admin/trading/users/${id}/pause`, { enabled }),
+  forceClose: (user_id?: number) => api.post("/admin/trading/force-close", { user_id }),
+  overrideSignal: (data: {
+    user_id: number;
+    symbol: string;
+    side: string;
+    quantity: number;
+    strategy_id?: number;
+    note?: string;
+  }) => api.post("/admin/trading/override-signal", data),
+  listStrategies: () => api.get("/admin/strategies"),
+  updateStrategy: (id: number, data: { parameters: Record<string, unknown>; is_active?: boolean }) =>
+    api.patch(`/admin/strategies/${id}`, data),
+  risk: () => api.get<PlatformControlState>("/admin/risk"),
+  updateRisk: (data: {
+    global_stop_loss_limit: number;
+    default_max_trade_amount: number;
+    default_daily_loss_limit: number;
+    default_max_trades_per_day: number;
+  }) => api.put("/admin/risk", data),
+  systemStatus: () => api.get("/admin/system/status"),
+  setSystemRun: (enabled: boolean) => api.post("/admin/system/run", { enabled }),
+  setMarketData: (enabled: boolean) => api.post("/admin/system/market-data", { enabled }),
+  restartService: (service_name: string) => api.post(`/admin/system/restart/${service_name}`),
+  auditLogs: (params?: { limit?: number; entity_type?: string }) => api.get("/admin/logs/audit", { params }),
 };
 
 export default api;

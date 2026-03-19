@@ -15,6 +15,9 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
     )
+    ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "admin@algotrader.local")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "Admin@123")
+    ADMIN_FULL_NAME: str = os.getenv("ADMIN_FULL_NAME", "Platform Administrator")
 
 
 settings = Settings()

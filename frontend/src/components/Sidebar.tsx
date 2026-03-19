@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth";
+import BrandLogo from "@/components/BrandLogo";
+import { authApi } from "@/lib/api";
 
 const navItems = [
   {
@@ -62,9 +65,79 @@ const navItems = [
   },
 ];
 
+const adminNavItems = [
+  {
+    href: "/admin",
+    label: "Admin Dashboard",
+    icon: (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9a2.25 2.25 0 01-2.25-2.25V7.5A2.25 2.25 0 017.5 5.25h9A2.25 2.25 0 0118.75 7.5v9a2.25 2.25 0 01-2.25 2.25z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 9h6m-6 3h6m-6 3h3" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/users",
+    label: "User Management",
+    icon: (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.964 0a9 9 0 10-11.964 0m11.964 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/trades",
+    label: "Trade Monitor",
+    icon: (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 17.25l6-6 4.5 4.5L21 8.25" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 8.25H21v6.75" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/risk",
+    label: "Risk Settings",
+    icon: (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 5.056-4.611 9.157-10.5 9.157S0 17.056 0 12 4.611 2.843 10.5 2.843 21 6.944 21 12z" />
+      </svg>
+    ),
+  },
+  {
+    href: "/admin/logs",
+    label: "System Logs",
+    icon: (
+      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4.5h6M7.5 3.75h9A2.25 2.25 0 0118.75 6v12A2.25 2.25 0 0116.5 20.25h-9A2.25 2.25 0 015.25 18V6A2.25 2.25 0 017.5 3.75z" />
+      </svg>
+    ),
+  },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    authApi
+      .me()
+      .then((res) => {
+        if (mounted) {
+          setIsAdmin(res.data.role === "admin");
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setIsAdmin(false);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -74,15 +147,7 @@ export default function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-50 hidden w-72 border-r border-white/10 bg-[#071835] text-white lg:flex lg:flex-col">
       <div className="border-b border-white/10 px-6 py-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-sm bg-[#007cc3] text-base font-bold text-white">
-            AT
-          </div>
-          <div>
-            <p className="text-lg font-semibold tracking-tight">AlgoTrader</p>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-sky-100/60">Trading Platform</p>
-          </div>
-        </div>
+        <BrandLogo theme="dark" iconSize="sm" tagline="Research | Backtest | Execute" />
       </div>
 
       <div className="px-6 py-5">
@@ -95,14 +160,14 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-4 pb-6">
-        <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.26em] text-sky-100/45">
-          Navigation
-        </p>
-        <ul className="mt-4 space-y-1.5">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <li key={item.href}>
+          <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.26em] text-sky-100/45">
+            Navigation
+          </p>
+          <ul className="mt-4 space-y-1.5">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              return (
+                <li key={item.href}>
                 <Link
                   href={item.href}
                   className={`group flex items-center gap-3 rounded-sm border px-3 py-3 text-sm font-semibold transition ${
@@ -119,8 +184,38 @@ export default function Sidebar() {
                 </Link>
               </li>
             );
-          })}
-        </ul>
+            })}
+          </ul>
+          {isAdmin ? (
+            <>
+              <p className="mt-8 px-3 text-[11px] font-semibold uppercase tracking-[0.26em] text-cyan-200/55">
+                Admin
+              </p>
+              <ul className="mt-4 space-y-1.5">
+                {adminNavItems.map((item) => {
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={`group flex items-center gap-3 rounded-sm border px-3 py-3 text-sm font-semibold transition ${
+                          isActive
+                            ? "border-cyan-300/30 bg-cyan-400/10 text-white"
+                            : "border-transparent text-sky-50/72 hover:border-white/10 hover:bg-white/6 hover:text-white"
+                        }`}
+                      >
+                        <span className={isActive ? "text-cyan-200" : "text-sky-100/50 group-hover:text-sky-100"}>
+                          {item.icon}
+                        </span>
+                        <span>{item.label}</span>
+                        {isActive ? <span className="ml-auto h-2 w-2 rounded-full bg-cyan-300" /> : null}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          ) : null}
       </nav>
 
       <div className="border-t border-white/10 px-4 py-4">

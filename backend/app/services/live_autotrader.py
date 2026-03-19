@@ -11,10 +11,11 @@ from app.database import SessionLocal
 from app.models.position import Position
 from app.models.user import User
 from app.schemas.trade import TradeExecute
+from app.services.admin import emit_admin_monitor_payload, get_platform_settings
 from app.services.auto_trader import screen_market
 from app.services.market_data import get_current_price
-from app.api.trading import execute_trade
 from app.api.websocket import emit_bot_log
+from app.services.trading_engine import execute_trade_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,9 @@ def _tick(user_id: int, cfg: AutoTradeConfig) -> None:
         if not user:
             stop(user_id)
             return
+        platform = get_platform_settings(db)
+        if not platform.system_running or not platform.trading_enabled or not user.is_trading_enabled:
+            return
 
         # 1) Risk management: profit target / stop loss on open positions
         positions = db.query(Position).filter(Position.user_id == user_id).all()
@@ -124,10 +128,12 @@ def _tick(user_id: int, cfg: AutoTradeConfig) -> None:
                         },
                     )
                 )
-                execute_trade(
-                    TradeExecute(symbol=pos.symbol, side="sell", quantity=pos.quantity),
+                execute_trade_for_user(
                     db,
                     user,
+                    TradeExecute(symbol=pos.symbol, side="sell", quantity=pos.quantity),
+                    source="autotrader_exit",
+                    notes=f"Exit due to {reason}",
                 )
 
         # 2) Entry logic: buy on bullish signals (MA crossover / RSI) from scanner
@@ -166,10 +172,20 @@ def _tick(user_id: int, cfg: AutoTradeConfig) -> None:
                 },
             )
         )
-        execute_trade(
-            TradeExecute(symbol=pick["symbol"], side="buy", quantity=qty),
+        execute_trade_for_user(
             db,
             user,
+            TradeExecute(symbol=pick["symbol"], side="buy", quantity=qty),
+            source="autotrader_entry",
+            notes="Signal-triggered auto-trader entry",
+        )
+        emit_admin_monitor_payload(
+            category="autotrader",
+            action="entry_signal",
+            message=f"Auto-trader entered {pick['symbol']} for user {user_id}",
+            user_id=user_id,
+            symbol=pick["symbol"],
+            meta={"quantity": qty},
         )
     finally:
         if db is not None:

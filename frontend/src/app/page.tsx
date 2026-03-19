@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isAuthenticated } from "@/lib/auth";
+import BrandLogo from "@/components/BrandLogo";
 
 const solutions = [
   {
@@ -129,15 +130,7 @@ export default function LandingPage() {
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             className="flex items-center gap-3 text-left"
           >
-            <div className="flex h-11 w-11 items-center justify-center rounded-sm bg-[#007cc3] text-sm font-bold text-white">
-              AT
-            </div>
-            <div>
-              <p className="text-lg font-semibold tracking-tight text-[#0b2a5b]">AlgoTrader</p>
-              <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
-                Enterprise Trading Platform
-              </p>
-            </div>
+            <BrandLogo iconSize="sm" tagline="Research | Backtest | Execute" />
           </button>
 
           <nav className="hidden items-center gap-8 text-sm font-medium text-slate-700 lg:flex">
@@ -426,7 +419,7 @@ export default function LandingPage() {
       <footer className="bg-[#071835] text-white">
         <div className="mx-auto grid max-w-7xl gap-10 px-6 py-10 md:grid-cols-[1.2fr_0.8fr]">
           <div>
-            <p className="text-lg font-semibold">AlgoTrader Platform</p>
+            <BrandLogo theme="dark" iconSize="sm" tagline="Research | Backtest | Execute" />
             <p className="mt-3 max-w-2xl text-sm leading-7 text-sky-50/70">
               A structured trading platform for research, backtesting, paper execution, and automated
               operations.
